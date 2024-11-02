@@ -91,7 +91,7 @@ async def on_interaction(interaction: discord.Interaction):
 
         try:
             # Send the initial raid message
-            message = await interaction.channel.send(f"**{title}**\n**Wings**: {wings}\n**Start Time**: {start_time_stamp}\n**End Time**: {end_time_stamp}\n**Description**: {description or 'None'}")
+            message = await interaction.channel.send(f"**{title}**\n**Wings**: {wings}\n**Start Time**: {start_time_stamp}\n**End Time**: {end_time_stamp}\n**Description**: {description or 'None'}\n\n**Sign-Ups:**\nNone\n\n**Reserves:**\nNone")
 
             sign_ups[message.id] = {}
             reserves[message.id] = {}
@@ -115,8 +115,13 @@ async def on_interaction(interaction: discord.Interaction):
             async def sign_up_callback(interaction: discord.Interaction):
                 await interaction.response.defer()  # Acknowledge the interaction
                 user_mention = interaction.user.mention
+
                 if user_mention in sign_ups[message.id]:
                     await interaction.followup.send(f"{user_mention}, you are already signed up!", ephemeral=True)
+                    return
+
+                if user_mention in reserves[message.id]:
+                    await interaction.followup.send(f"{user_mention}, you are already in the reserves and cannot sign up. Please remove yourself from the reserves first.", ephemeral=True)
                     return
 
                 roles = ["Alacrity Heal", "Quick Heal", "Alacrity DPS", "Quick DPS", "Regular DPS"]
@@ -155,68 +160,74 @@ async def on_interaction(interaction: discord.Interaction):
                         async def mechanics_select_callback(interaction: discord.Interaction):
                             await interaction.response.defer()  # Acknowledge the interaction
                             selected_mechanics = mechanics_select.values
-                            sign_ups[message.id][user_mention] = (selected_role, selected_flex_roles, selected_mechanics)
 
-                            sign_up_list = "\n".join([f"{user} - Role: {role}, Flex: {', '.join(flex_roles)}, Mechanics: {', '.join(mechanics)}" for user, (role, flex_roles, mechanics) in sign_ups[message.id].items()])
-                            reserve_list = "\n".join([f"{user} - Role: {role}" for user, (role, _) in reserves[message.id].items()])
-                            await message.edit(content=f"**{title}**\n**Wings**: {wings}\n**Start Time**: {start_time_stamp}\n**End Time**: {end_time_stamp}\n**Description**: {description or 'None'}\n\n**Sign-Ups:**\n{sign_up_list or 'None'}\n\n**Reserves:**\n{reserve_list or 'None'}")
-                            await interaction.followup.send("You have successfully signed up!", ephemeral=True)
+                            sign_ups[message.id][user_mention] = (selected_role, selected_flex_roles, selected_mechanics)
+                            sign_up_list = "\n".join([f"{user}: {details[0]} (Flex: {', '.join(details[1])}, Mechanics: {', '.join(details[2])})" for user, details in sign_ups[message.id].items()])
+
+                            reserve_list = "\n".join([f"{user}" for user in reserves[message.id].keys()])
+                            await message.edit(content=f"**{title}**\n**Wings**: {wings}\n**Start Time**: {start_time_stamp}\n**End Time**: {end_time_stamp}\n**Description**: {description or 'None'}\n\n**Sign Ups:**\n{sign_up_list or 'None'}\n\n**Reserves:**\n{reserve_list or 'None'}", view=view)
 
                         mechanics_select.callback = mechanics_select_callback
-                        await interaction.followup.send("Please select wing mechanics.", ephemeral=True, view=discord.ui.View().add_item(mechanics_select))
+                        await interaction.followup.send("Please select your mechanics.", view=discord.ui.View().add_item(mechanics_select), ephemeral=True)
 
                     flex_role_select.callback = flex_role_select_callback
-                    await interaction.followup.send("Please select your flex roles.", ephemeral=True, view=discord.ui.View().add_item(flex_role_select))
+                    await interaction.followup.send("Please select your flex role(s).", view=discord.ui.View().add_item(flex_role_select), ephemeral=True)
 
                 role_select.callback = role_select_callback
-                await interaction.followup.send("Please select your role.", ephemeral=True, view=discord.ui.View().add_item(role_select))
-
-            sign_up_button.callback = sign_up_callback
+                await interaction.followup.send("Please select your role.", view=discord.ui.View().add_item(role_select), ephemeral=True)
 
             async def reserve_callback(interaction: discord.Interaction):
                 await interaction.response.defer()  # Acknowledge the interaction
                 user_mention = interaction.user.mention
+
                 if user_mention in reserves[message.id]:
-                    await interaction.followup.send(f"{user_mention}, you are already reserved!", ephemeral=True)
+                    await interaction.followup.send(f"{user_mention}, you are already in the reserves!", ephemeral=True)
                     return
 
-                reserves[message.id][user_mention] = ("Reserved", [])
+                if user_mention in sign_ups[message.id]:
+                    await interaction.followup.send(f"{user_mention}, you are already signed up and cannot join reserves. Please remove yourself from the sign-ups first.", ephemeral=True)
+                    return
 
-                sign_up_list = "\n".join([f"{user} - Role: {role}, Flex: {', '.join(flex_roles)}, Mechanics: {', '.join(mechanics)}" for user, (role, flex_roles, mechanics) in sign_ups[message.id].items()])
-                reserve_list = "\n".join([f"{user} - Role: {role}" for user, (role, _) in reserves[message.id].items()])
-                
-                await message.edit(content=f"**{title}**\n**Wings**: {wings}\n**Start Time**: {start_time_stamp}\n**End Time**: {end_time_stamp}\n**Description**: {description or 'None'}\n\n**Sign-Ups:**\n{sign_up_list or 'None'}\n\n**Reserves:**\n{reserve_list or 'None'}")
-                await interaction.followup.send("You have successfully reserved a spot!", ephemeral=True)
+                reserve_roles = ["Alacrity Heal", "Quick Heal", "Alacrity DPS", "Quick DPS", "Regular DPS"]
+                reserve_role_select = discord.ui.Select(placeholder="Select reserve roles", options=[discord.SelectOption(label=role) for role in reserve_roles], max_values=len(reserve_roles))
 
-            reserve_button.callback = reserve_callback
+                async def reserve_role_select_callback(interaction: discord.Interaction):
+                    await interaction.response.defer()  # Acknowledge the interaction
+                    selected_reserve_roles = reserve_role_select.values
+
+                    reserves[message.id][user_mention] = selected_reserve_roles
+
+                    sign_up_list = "\n".join([f"{user}: {details[0]} (Flex: {', '.join(details[1])}, Mechanics: {', '.join(details[2])})" for user, details in sign_ups[message.id].items()])
+                    reserve_list = "\n".join([f"{user} (Flex: {', '.join(reserve_roles)})" for user, reserve_roles in reserves[message.id].items()])
+
+                    await message.edit(content=f"**{title}**\n**Wings**: {wings}\n**Start Time**: {start_time_stamp}\n**End Time**: {end_time_stamp}\n**Description**: {description or 'None'}\n\n**Sign Ups:**\n{sign_up_list or 'None'}\n\n**Reserves:**\n{reserve_list or 'None'}", view=view)
+
+                reserve_role_select.callback = reserve_role_select_callback
+                await interaction.followup.send("Please select your reserve role(s).", view=discord.ui.View().add_item(reserve_role_select), ephemeral=True)
 
             async def remove_callback(interaction: discord.Interaction):
                 await interaction.response.defer()  # Acknowledge the interaction
                 user_mention = interaction.user.mention
                 if user_mention in sign_ups[message.id]:
                     del sign_ups[message.id][user_mention]
-                    await interaction.followup.send(f"{user_mention}, you have been removed from sign-ups.", ephemeral=True)
                 elif user_mention in reserves[message.id]:
                     del reserves[message.id][user_mention]
-                    await interaction.followup.send(f"{user_mention}, you have been removed from reserves.", ephemeral=True)
                 else:
-                    await interaction.followup.send(f"{user_mention}, you are not in sign-ups or reserves.", ephemeral=True)
+                    await interaction.followup.send(f"{user_mention}, you are not signed up.", ephemeral=True)
+                    return
 
-                sign_up_list = "\n".join([f"{user} - Role: {role}, Flex: {', '.join(flex_roles)}, Mechanics: {', '.join(mechanics)}" for user, (role, flex_roles, mechanics) in sign_ups[message.id].items()])
-                reserve_list = "\n".join([f"{user} - Role: {role}" for user, (role, _) in reserves[message.id].items()])
-                await message.edit(content=f"**{title}**\n**Wings**: {wings}\n**Start Time**: {start_time_stamp}\n**End Time**: {end_time_stamp}\n**Description**: {description or 'None'}\n\n**Sign-Ups:**\n{sign_up_list or 'None'}\n\n**Reserves:**\n{reserve_list or 'None'}")
+                sign_up_list = "\n".join([f"{user}: {details[0]} (Flex: {', '.join(details[1])}, Mechanics: {', '.join(details[2])})" for user, details in sign_ups[message.id].items()])
+                reserve_list = "\n".join([f"{user} (Flex: {', '.join(reserve_roles)})" for user, reserve_roles in reserves[message.id].items()])
 
+                await message.edit(content=f"**{title}**\n**Wings**: {wings}\n**Start Time**: {start_time_stamp}\n**End Time**: {end_time_stamp}\n**Description**: {description or 'None'}\n\n**Sign Ups:**\n{sign_up_list or 'None'}\n\n**Reserves:**\n{reserve_list or 'None'}", view=view)
+
+            sign_up_button.callback = sign_up_callback
+            reserve_button.callback = reserve_callback
             remove_button.callback = remove_callback
 
-            await message.edit(view=view)
-
-            # Acknowledge the modal interaction
             await interaction.response.send_message("Your raid has been scheduled!", ephemeral=True)
 
-        except discord.Forbidden:
-            await interaction.response.send_message("I cannot send messages in this channel. Please check my permissions.", ephemeral=True)
         except Exception as e:
-            print(f"Error: {str(e)}")  # Log error
-            await interaction.response.send_message(f"An error occurred: {str(e)}", ephemeral=True)
+            print(e)
 
 bot.run('MTMwMTA4MTI2MzY0MTQ2NDg1NA.G8QPov.rkt-fD4T_pB9r1MeEvjFAWeMsGVKXo8lcAMbEw')
