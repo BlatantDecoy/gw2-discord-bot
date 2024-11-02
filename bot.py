@@ -44,7 +44,7 @@ async def on_interaction(interaction: discord.Interaction):
         try:
             message = await interaction.channel.send(f"Raid scheduled!\n**Wings**: {wings}\n**Start Time**: {start_time}\n**End Time**: {end_time}\n**Description**: {description}")
 
-            sign_ups[message.id] = []
+            sign_ups[message.id] = {}
 
             sign_up_button = discord.ui.Button(label="Sign Up", style=discord.ButtonStyle.green)
             reserve_button = discord.ui.Button(label="Reserve", style=discord.ButtonStyle.blurple)
@@ -58,6 +58,11 @@ async def on_interaction(interaction: discord.Interaction):
             async def sign_up_callback(interaction: discord.Interaction):
                 user_mention = interaction.user.mention
                 
+                # Check if the user is already signed up
+                if user_mention in sign_ups[message.id]:
+                    await interaction.response.send_message(f"{user_mention}, you are already signed up!", ephemeral=True)
+                    return
+
                 # Role selection
                 roles = ["Alacrity Heal", "Quick Heal", "Alacrity DPS", "Quick DPS", "DPS"]
                 role_select = discord.ui.Select(placeholder="Select your role", options=[discord.SelectOption(label=role) for role in roles])
@@ -79,9 +84,9 @@ async def on_interaction(interaction: discord.Interaction):
 
                         async def mechanics_select_callback(interaction: discord.Interaction):
                             selected_mechanics = mechanics_select.values
-                            sign_ups[message.id].append((user_mention, selected_role, selected_flex_roles, selected_mechanics))
+                            sign_ups[message.id][user_mention] = (selected_role, selected_flex_roles, selected_mechanics)
                             
-                            sign_up_list = "\n".join([f"{user} - Role: {role}, Flex: {', '.join(flex_roles)}, Mechanics: {', '.join(mechanics)}" for user, role, flex_roles, mechanics in sign_ups[message.id]])
+                            sign_up_list = "\n".join([f"{user} - Role: {role}, Flex: {', '.join(flex_roles)}, Mechanics: {', '.join(mechanics)}" for user, (role, flex_roles, mechanics) in sign_ups[message.id].items()])
                             await message.edit(content=f"Raid scheduled!\n**Wings**: {wings}\n**Start Time**: {start_time}\n**End Time**: {end_time}\n**Description**: {description}\n\n**Sign-Ups:**\n{sign_up_list}")
 
                             await interaction.response.send_message(f"{user_mention} has signed up as **{selected_role}** with flex roles **{', '.join(selected_flex_roles)}** and can do **{', '.join(selected_mechanics)}**!", ephemeral=True)
@@ -106,14 +111,20 @@ async def on_interaction(interaction: discord.Interaction):
             # Reserve button functionality (as available backup)
             async def reserve_callback(interaction: discord.Interaction):
                 user_mention = interaction.user.mention
+                
+                # Check if the user is already signed up
+                if user_mention in sign_ups[message.id]:
+                    await interaction.response.send_message(f"{user_mention}, you are already signed up!", ephemeral=True)
+                    return
+
                 roles = ["Alacrity Heal", "Quick Heal", "Alacrity DPS", "Quick DPS", "DPS"]
                 reserve_role_select = discord.ui.Select(placeholder="Select roles you can flex into if needed", options=[discord.SelectOption(label=role) for role in roles], max_values=len(roles))
 
                 async def reserve_role_select_callback(interaction: discord.Interaction):
                     selected_roles = reserve_role_select.values
-                    sign_ups[message.id].append((user_mention, "Reserved", selected_roles, []))  # Reserved with available roles
+                    sign_ups[message.id][user_mention] = ("Reserved", selected_roles, [])  # Reserved with available roles
 
-                    sign_up_list = "\n".join([f"{user} - Role: {role}, Flex: {', '.join(flex_roles)}, Mechanics: {', '.join(mechanics)}" for user, role, flex_roles, mechanics in sign_ups[message.id]])
+                    sign_up_list = "\n".join([f"{user} - Role: {role}, Flex: {', '.join(flex_roles)}, Mechanics: {', '.join(mechanics)}" for user, (role, flex_roles, mechanics) in sign_ups[message.id].items()])
                     await message.edit(content=f"Raid scheduled!\n**Wings**: {wings}\n**Start Time**: {start_time}\n**End Time**: {end_time}\n**Description**: {description}\n\n**Sign-Ups:**\n{sign_up_list}")
 
                     await interaction.response.send_message(f"{user_mention} has been reserved as available for **{', '.join(selected_roles)}** roles!", ephemeral=True)
@@ -128,9 +139,11 @@ async def on_interaction(interaction: discord.Interaction):
             # Remove button functionality
             async def remove_callback(interaction: discord.Interaction):
                 user_mention = interaction.user.mention
-                if user_mention in [u[0] for u in sign_ups[message.id]]:
-                    sign_ups[message.id] = [u for u in sign_ups[message.id] if u[0] != user_mention]
-                    await message.edit(content=f"Raid scheduled!\n**Wings**: {wings}\n**Start Time**: {start_time}\n**End Time**: {end_time}\n**Description**: {description}\n\n**Sign-Ups:**\n{len(sign_ups[message.id])} users signed up.")
+                if user_mention in sign_ups[message.id]:
+                    del sign_ups[message.id][user_mention]
+                    sign_up_list = "\n".join([f"{user} - Role: {role}, Flex: {', '.join(flex_roles)}, Mechanics: {', '.join(mechanics)}" for user, (role, flex_roles, mechanics) in sign_ups[message.id].items()])
+
+                    await message.edit(content=f"Raid scheduled!\n**Wings**: {wings}\n**Start Time**: {start_time}\n**End Time**: {end_time}\n**Description**: {description}\n\n**Sign-Ups:**\n{sign_up_list if sign_up_list else 'No sign-ups yet.'}")
                     await interaction.response.send_message(f"{user_mention} has been removed from sign-ups!", ephemeral=True)
                 else:
                     await interaction.response.send_message(f"{user_mention}, you are not signed up!", ephemeral=True)
@@ -146,4 +159,5 @@ async def on_interaction(interaction: discord.Interaction):
             print(f"Error: {str(e)}")  # Log error
             await interaction.response.send_message(f"An error occurred: {str(e)}", ephemeral=True)
 
+# Run the bot
 bot.run('MTMwMTA4MTI2MzY0MTQ2NDg1NA.G8QPov.rkt-fD4T_pB9r1MeEvjFAWeMsGVKXo8lcAMbEw')
