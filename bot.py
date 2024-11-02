@@ -1,13 +1,27 @@
 import discord
 from discord.ext import commands
+import re
+from datetime import datetime
 
 # Set up intents
 intents = discord.Intents.default()
 intents.message_content = True  # Enable intent if using message content interactions
 bot = commands.Bot(command_prefix="gkrm!", intents=intents)
 
-# Store sign-ups for each raid message
+# Store sign-ups and reserves for each raid message
 sign_ups = {}
+reserves = {}
+
+# Wing mechanics dictionary
+wing_mechanics_dict = {
+    "1": ["Cannons (W1B3)"],
+    "2": ["Mushrooms (W2B1)", "Mortar (W2B2)", "Feedback (W2B3)"],
+    "3": ["Towers (W3B1)"],
+    "4": ["Claim (W4B2)", "Dispell (W4B2)", "Protect (W4B2)", "Handkite (W4B4)"],
+    "5": ["Push (W5B1)", "Eyes Thrower (W5B2)", "Green 1 (W5B3)", "Green 2/Kite (W5B3)"],
+    "6": ["Swords (W6B1)", "Shield (W6B1)", "Largos Kite (W6B2)", "Slub Kite (W6B3)", "Lamp (W6B3)"],
+    "7": ["Pillars (W7 Adina)", "Bubble/Reflect (W7 Sabir/Adina)", "Pylons (W7B3)"]
+}
 
 @bot.event
 async def on_ready():
@@ -19,13 +33,14 @@ async def on_ready():
 async def raid_new(interaction: discord.Interaction):
     modal = discord.ui.Modal(title="Raid Details", timeout=60)
 
-    wings_input = discord.ui.TextInput(label="Wings", placeholder="e.g., 1, 2, 3")
+    title_input = discord.ui.TextInput(label="Title", placeholder="Enter raid title")
+    wings_input = discord.ui.TextInput(label="Wings", placeholder="e.g., 1,2,3")
+    start_time_input = discord.ui.TextInput(label="Start Time", placeholder="e.g., 2024-11-01 20:00")
+    end_time_input = discord.ui.TextInput(label="End Time (optional)", required=False, placeholder="e.g., 2024-11-01 22:00")
+    description_input = discord.ui.TextInput(label="Description (optional)", style=discord.TextStyle.paragraph, required=False)
+
+    modal.add_item(title_input)
     modal.add_item(wings_input)
-
-    start_time_input = discord.ui.TextInput(label="Start Time", placeholder="e.g., 8:00 PM")
-    end_time_input = discord.ui.TextInput(label="End Time", placeholder="e.g., 10:00 PM")
-    description_input = discord.ui.TextInput(label="Description", style=discord.TextStyle.paragraph)
-
     modal.add_item(start_time_input)
     modal.add_item(end_time_input)
     modal.add_item(description_input)
@@ -36,119 +51,164 @@ async def raid_new(interaction: discord.Interaction):
 @bot.event
 async def on_interaction(interaction: discord.Interaction):
     if interaction.type == discord.InteractionType.modal_submit:
-        wings = interaction.data['components'][0]['components'][0]['value']
-        start_time = interaction.data['components'][1]['components'][0]['value']
-        end_time = interaction.data['components'][2]['components'][0]['value']
-        description = interaction.data['components'][3]['components'][0]['value']
+        title = interaction.data['components'][0]['components'][0]['value']
+        wings = interaction.data['components'][1]['components'][0]['value']
+        start_time = interaction.data['components'][2]['components'][0]['value']
+        end_time = interaction.data['components'][3]['components'][0]['value']
+        description = interaction.data['components'][4]['components'][0]['value']
+
+        # Validate wings input format
+        if not re.match(r'^\d+(,\d+)*$', wings.strip()):
+            await interaction.response.send_message("Invalid input format for Wings. Please use the following format: e.g., 1,2,3", ephemeral=True)
+            return
+
+        # Parse the start time and end time
+        start_time_str = start_time.strip()
+        end_time_str = end_time.strip() if end_time else None
 
         try:
-            message = await interaction.channel.send(f"Raid scheduled!\n**Wings**: {wings}\n**Start Time**: {start_time}\n**End Time**: {end_time}\n**Description**: {description}")
+            start_time_dt = datetime.strptime(start_time_str, '%Y-%m-%d %H:%M')
+
+            # Check if the start time has already passed
+            if start_time_dt < datetime.now():
+                await interaction.response.send_message("The start time has already passed. Please enter a future time.", ephemeral=True)
+                return
+
+            start_time_stamp = f'<t:{int(start_time_dt.timestamp())}:F>'  # Discord timestamp in full date format
+        except ValueError:
+            await interaction.response.send_message("Invalid start time format. Please use 'YYYY-MM-DD HH:MM'.", ephemeral=True)
+            return
+
+        if end_time_str:
+            try:
+                end_time_dt = datetime.strptime(end_time_str, '%Y-%m-%d %H:%M')
+                end_time_stamp = f'<t:{int(end_time_dt.timestamp())}:F>'
+            except ValueError:
+                await interaction.response.send_message("Invalid end time format. Please use 'YYYY-MM-DD HH:MM'.", ephemeral=True)
+                return
+        else:
+            end_time_stamp = 'Not provided'
+
+        try:
+            # Send the initial raid message
+            message = await interaction.channel.send(f"**{title}**\n**Wings**: {wings}\n**Start Time**: {start_time_stamp}\n**End Time**: {end_time_stamp}\n**Description**: {description or 'None'}")
 
             sign_ups[message.id] = {}
+            reserves[message.id] = {}
 
+            # Create Sign-Up, Reserve, and Remove Buttons
             sign_up_button = discord.ui.Button(label="Sign Up", style=discord.ButtonStyle.green)
             reserve_button = discord.ui.Button(label="Reserve", style=discord.ButtonStyle.blurple)
             remove_button = discord.ui.Button(label="Remove", style=discord.ButtonStyle.red)
+
             view = discord.ui.View()
             view.add_item(sign_up_button)
             view.add_item(reserve_button)
             view.add_item(remove_button)
             await message.edit(view=view)
 
+            # Parse selected wings to get associated mechanics
+            selected_mechanics = ["None"]
+            for wing in wings.split(","):
+                selected_mechanics.extend(wing_mechanics_dict.get(wing.strip(), []))
+
             async def sign_up_callback(interaction: discord.Interaction):
+                await interaction.response.defer()  # Acknowledge the interaction
                 user_mention = interaction.user.mention
-                
-                # Check if the user is already signed up
                 if user_mention in sign_ups[message.id]:
-                    await interaction.response.send_message(f"{user_mention}, you are already signed up!", ephemeral=True)
+                    await interaction.followup.send(f"{user_mention}, you are already signed up!", ephemeral=True)
                     return
 
-                # Role selection
-                roles = ["Alacrity Heal", "Quick Heal", "Alacrity DPS", "Quick DPS", "DPS"]
-                role_select = discord.ui.Select(placeholder="Select your role", options=[discord.SelectOption(label=role) for role in roles])
+                roles = ["Alacrity Heal", "Quick Heal", "Alacrity DPS", "Quick DPS", "Regular DPS"]
+                max_healers = 2
+                max_dps = 8
+                max_regular_dps = 6
+                alacrity_count = sum(1 for _, (role, _, _) in sign_ups[message.id].items() if "Alacrity" in role)
+                quick_count = sum(1 for _, (role, _, _) in sign_ups[message.id].items() if "Quick" in role)
+                available_roles = roles.copy()
+
+                if sum(1 for user in sign_ups[message.id] if "Heal" in sign_ups[message.id][user][0]) >= max_healers:
+                    available_roles = [role for role in available_roles if "Heal" not in role]
+                if sum(1 for user in sign_ups[message.id] if "DPS" in sign_ups[message.id][user][0]) >= max_regular_dps:
+                    available_roles = [role for role in available_roles if "Regular DPS" not in role]
+                if alacrity_count >= 2:
+                    available_roles = [role for role in available_roles if "Alacrity" not in role]
+                if quick_count >= 2:
+                    available_roles = [role for role in available_roles if "Quick" not in role]
+
+                role_select = discord.ui.Select(placeholder="Select your role", options=[discord.SelectOption(label=role) for role in available_roles])
 
                 async def role_select_callback(interaction: discord.Interaction):
+                    await interaction.response.defer()  # Acknowledge the interaction
                     selected_role = role_select.values[0]
 
-                    # Flex role selection (optional) with "None" option
-                    flex_roles = ["None"] + roles  # Adding "None" as an option
-                    flex_role_select = discord.ui.Select(placeholder="Select your flex roles (optional)", options=[discord.SelectOption(label=role) for role in flex_roles], max_values=len(flex_roles))
+                    flex_roles = ["None"] + roles
+                    flex_role_select = discord.ui.Select(placeholder="Select flex roles", options=[discord.SelectOption(label=role) for role in flex_roles], max_values=len(flex_roles))
 
                     async def flex_role_select_callback(interaction: discord.Interaction):
+                        await interaction.response.defer()  # Acknowledge the interaction
                         selected_flex_roles = flex_role_select.values
-                        selected_flex_roles = [role for role in selected_flex_roles if role != "None"]  # Remove "None" from the list
+                        selected_flex_roles = [role for role in selected_flex_roles if role != "None"]
 
-                        # Wing Mechanics selection
-                        wing_mechanics = ["W1B1", "W2B2", "W3B3"]
-                        mechanics_select = discord.ui.Select(placeholder="Select Wing Mechanics", options=[discord.SelectOption(label=mechanic) for mechanic in wing_mechanics], max_values=len(wing_mechanics))
+                        mechanics_select = discord.ui.Select(placeholder="Select Wing Mechanics", options=[discord.SelectOption(label=mechanic) for mechanic in selected_mechanics], max_values=len(selected_mechanics))
 
                         async def mechanics_select_callback(interaction: discord.Interaction):
+                            await interaction.response.defer()  # Acknowledge the interaction
                             selected_mechanics = mechanics_select.values
                             sign_ups[message.id][user_mention] = (selected_role, selected_flex_roles, selected_mechanics)
-                            
-                            sign_up_list = "\n".join([f"{user} - Role: {role}, Flex: {', '.join(flex_roles)}, Mechanics: {', '.join(mechanics)}" for user, (role, flex_roles, mechanics) in sign_ups[message.id].items()])
-                            await message.edit(content=f"Raid scheduled!\n**Wings**: {wings}\n**Start Time**: {start_time}\n**End Time**: {end_time}\n**Description**: {description}\n\n**Sign-Ups:**\n{sign_up_list}")
 
-                            await interaction.response.send_message(f"{user_mention} has signed up as **{selected_role}** with flex roles **{', '.join(selected_flex_roles)}** and can do **{', '.join(selected_mechanics)}**!", ephemeral=True)
+                            sign_up_list = "\n".join([f"{user} - Role: {role}, Flex: {', '.join(flex_roles)}, Mechanics: {', '.join(mechanics)}" for user, (role, flex_roles, mechanics) in sign_ups[message.id].items()])
+                            reserve_list = "\n".join([f"{user} - Role: {role}" for user, (role, _) in reserves[message.id].items()])
+                            await message.edit(content=f"**{title}**\n**Wings**: {wings}\n**Start Time**: {start_time_stamp}\n**End Time**: {end_time_stamp}\n**Description**: {description or 'None'}\n\n**Sign-Ups:**\n{sign_up_list or 'None'}\n\n**Reserves:**\n{reserve_list or 'None'}")
+                            await interaction.followup.send("You have successfully signed up!", ephemeral=True)
 
                         mechanics_select.callback = mechanics_select_callback
-                        mechanics_view = discord.ui.View()
-                        mechanics_view.add_item(mechanics_select)
-                        await interaction.response.send_message("Please select your Wing Mechanics:", view=mechanics_view, ephemeral=True)
+                        await interaction.followup.send("Please select wing mechanics.", ephemeral=True, view=discord.ui.View().add_item(mechanics_select))
 
                     flex_role_select.callback = flex_role_select_callback
-                    flex_role_view = discord.ui.View()
-                    flex_role_view.add_item(flex_role_select)
-                    await interaction.response.send_message("Please select your flex roles (optional):", view=flex_role_view, ephemeral=True)
+                    await interaction.followup.send("Please select your flex roles.", ephemeral=True, view=discord.ui.View().add_item(flex_role_select))
 
                 role_select.callback = role_select_callback
-                view = discord.ui.View()
-                view.add_item(role_select)
-                await interaction.response.send_message("Please select your role:", view=view, ephemeral=True)
+                await interaction.followup.send("Please select your role.", ephemeral=True, view=discord.ui.View().add_item(role_select))
 
             sign_up_button.callback = sign_up_callback
 
-            # Reserve button functionality (as available backup)
             async def reserve_callback(interaction: discord.Interaction):
+                await interaction.response.defer()  # Acknowledge the interaction
                 user_mention = interaction.user.mention
-                
-                # Check if the user is already signed up
-                if user_mention in sign_ups[message.id]:
-                    await interaction.response.send_message(f"{user_mention}, you are already signed up!", ephemeral=True)
+                if user_mention in reserves[message.id]:
+                    await interaction.followup.send(f"{user_mention}, you are already reserved!", ephemeral=True)
                     return
 
-                roles = ["Alacrity Heal", "Quick Heal", "Alacrity DPS", "Quick DPS", "DPS"]
-                reserve_role_select = discord.ui.Select(placeholder="Select roles you can flex into if needed", options=[discord.SelectOption(label=role) for role in roles], max_values=len(roles))
+                reserves[message.id][user_mention] = ("Reserved", [])
 
-                async def reserve_role_select_callback(interaction: discord.Interaction):
-                    selected_roles = reserve_role_select.values
-                    sign_ups[message.id][user_mention] = ("Reserved", selected_roles, [])  # Reserved with available roles
-
-                    sign_up_list = "\n".join([f"{user} - Role: {role}, Flex: {', '.join(flex_roles)}, Mechanics: {', '.join(mechanics)}" for user, (role, flex_roles, mechanics) in sign_ups[message.id].items()])
-                    await message.edit(content=f"Raid scheduled!\n**Wings**: {wings}\n**Start Time**: {start_time}\n**End Time**: {end_time}\n**Description**: {description}\n\n**Sign-Ups:**\n{sign_up_list}")
-
-                    await interaction.response.send_message(f"{user_mention} has been reserved as available for **{', '.join(selected_roles)}** roles!", ephemeral=True)
-
-                reserve_role_select.callback = reserve_role_select_callback
-                reserve_view = discord.ui.View()
-                reserve_view.add_item(reserve_role_select)
-                await interaction.response.send_message("Please select roles you can flex into if needed:", view=reserve_view, ephemeral=True)
+                sign_up_list = "\n".join([f"{user} - Role: {role}, Flex: {', '.join(flex_roles)}, Mechanics: {', '.join(mechanics)}" for user, (role, flex_roles, mechanics) in sign_ups[message.id].items()])
+                reserve_list = "\n".join([f"{user} - Role: {role}" for user, (role, _) in reserves[message.id].items()])
+                
+                await message.edit(content=f"**{title}**\n**Wings**: {wings}\n**Start Time**: {start_time_stamp}\n**End Time**: {end_time_stamp}\n**Description**: {description or 'None'}\n\n**Sign-Ups:**\n{sign_up_list or 'None'}\n\n**Reserves:**\n{reserve_list or 'None'}")
+                await interaction.followup.send("You have successfully reserved a spot!", ephemeral=True)
 
             reserve_button.callback = reserve_callback
 
-            # Remove button functionality
             async def remove_callback(interaction: discord.Interaction):
+                await interaction.response.defer()  # Acknowledge the interaction
                 user_mention = interaction.user.mention
                 if user_mention in sign_ups[message.id]:
                     del sign_ups[message.id][user_mention]
-                    sign_up_list = "\n".join([f"{user} - Role: {role}, Flex: {', '.join(flex_roles)}, Mechanics: {', '.join(mechanics)}" for user, (role, flex_roles, mechanics) in sign_ups[message.id].items()])
-
-                    await message.edit(content=f"Raid scheduled!\n**Wings**: {wings}\n**Start Time**: {start_time}\n**End Time**: {end_time}\n**Description**: {description}\n\n**Sign-Ups:**\n{sign_up_list if sign_up_list else 'No sign-ups yet.'}")
-                    await interaction.response.send_message(f"{user_mention} has been removed from sign-ups!", ephemeral=True)
+                    await interaction.followup.send(f"{user_mention}, you have been removed from sign-ups.", ephemeral=True)
+                elif user_mention in reserves[message.id]:
+                    del reserves[message.id][user_mention]
+                    await interaction.followup.send(f"{user_mention}, you have been removed from reserves.", ephemeral=True)
                 else:
-                    await interaction.response.send_message(f"{user_mention}, you are not signed up!", ephemeral=True)
+                    await interaction.followup.send(f"{user_mention}, you are not in sign-ups or reserves.", ephemeral=True)
+
+                sign_up_list = "\n".join([f"{user} - Role: {role}, Flex: {', '.join(flex_roles)}, Mechanics: {', '.join(mechanics)}" for user, (role, flex_roles, mechanics) in sign_ups[message.id].items()])
+                reserve_list = "\n".join([f"{user} - Role: {role}" for user, (role, _) in reserves[message.id].items()])
+                await message.edit(content=f"**{title}**\n**Wings**: {wings}\n**Start Time**: {start_time_stamp}\n**End Time**: {end_time_stamp}\n**Description**: {description or 'None'}\n\n**Sign-Ups:**\n{sign_up_list or 'None'}\n\n**Reserves:**\n{reserve_list or 'None'}")
 
             remove_button.callback = remove_callback
+
+            await message.edit(view=view)
 
             # Acknowledge the modal interaction
             await interaction.response.send_message("Your raid has been scheduled!", ephemeral=True)
@@ -159,5 +219,4 @@ async def on_interaction(interaction: discord.Interaction):
             print(f"Error: {str(e)}")  # Log error
             await interaction.response.send_message(f"An error occurred: {str(e)}", ephemeral=True)
 
-# Run the bot
 bot.run('MTMwMTA4MTI2MzY0MTQ2NDg1NA.G8QPov.rkt-fD4T_pB9r1MeEvjFAWeMsGVKXo8lcAMbEw')
