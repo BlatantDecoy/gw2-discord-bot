@@ -45,11 +45,20 @@ class PersistentView(discord.ui.View):
         pass  # No action on timeout as we want the buttons to persist
 
 # Central function to update the raid message
-async def update_raid_message(message, title, wings, start_time_stamp, end_time_stamp, description, sign_up_list, reserve_list):
-    await message.edit(content=(
-        f"**{title}**\n**Wings**: {wings}\n**Start Time**: {start_time_stamp}\n**End Time**: {end_time_stamp}\n"
-        f"**Description**: {description or 'None'}\n\n**Sign Ups:**\n{sign_up_list or 'None'}\n\n**Reserves:**\n{reserve_list or 'None'}"
-    ))
+async def update_raid_message(interaction, message, title, wings, start_time_stamp, end_time_stamp, description, sign_up_list, reserve_list):
+    embed = discord.Embed(title=title, description=description or 'None', color=discord.Color.blue())
+    embed.add_field(name="Wings", value=wings, inline=False)
+    embed.add_field(name="Start Time", value=start_time_stamp, inline=False)
+    embed.add_field(name="End Time", value=end_time_stamp, inline=False)
+    embed.add_field(name="Sign Ups", value=sign_up_list or 'None', inline=False)
+    embed.add_field(name="Reserves", value=reserve_list or 'None', inline=False)
+
+    if message is None:
+        message = await interaction.channel.send(embed=embed)
+    else:
+        await message.edit(embed=embed)
+
+    return message
 
 # Command to initiate raid creation
 @bot.tree.command(name="raid_new", description="Create a new raid")
@@ -114,11 +123,7 @@ async def on_interaction(interaction: discord.Interaction):
 
         try:
             # Send the initial raid message
-            message = await interaction.channel.send(f"**{title}**\n**Wings**: {wings}\n**Start Time**: {start_time_stamp}\n**End Time**: {end_time_stamp}\n**Description**: {description or 'None'}\n\n**Sign-Ups:**\nNone\n\n**Reserves:**\nNone")
             view = PersistentView()
-
-            sign_ups[message.id] = {}
-            reserves[message.id] = {}
 
             # Create Sign-Up, Reserve, and Remove Buttons
             sign_up_button = discord.ui.Button(label="Sign Up", style=discord.ButtonStyle.green)
@@ -128,7 +133,14 @@ async def on_interaction(interaction: discord.Interaction):
             view.add_item(sign_up_button)
             view.add_item(reserve_button)
             view.add_item(remove_button)
-            await message.edit(view=view)
+            await interaction.response.send_message(content="Your raid has been scheduled!", embed=discord.Embed(title=title, description=description or 'None', color=discord.Color.blue()), view=view)
+
+            # Fetch the message object
+            message = await interaction.original_response()
+
+            # Now you can access message.id
+            sign_ups[message.id] = {}
+            reserves[message.id] = {}
 
             # Parse selected wings to get associated mechanics
             selected_mechanics = ["None"]
@@ -184,7 +196,7 @@ async def on_interaction(interaction: discord.Interaction):
                             sign_up_list = "\n".join([f"{user}: {details[0]} (Flex: {', '.join(details[1])}, Mechanics: {', '.join(details[2])})" for user, details in sign_ups[message.id].items()])
 
                             reserve_list = "\n".join([f"{user}" for user in reserves[message.id].keys()])
-                            await update_raid_message(message, title, wings, start_time_stamp, end_time_stamp, description, sign_up_list, reserve_list)
+                            await update_raid_message(interaction, message, title, wings, start_time_stamp, end_time_stamp, description, sign_up_list, reserve_list)
 
                         mechanics_select.callback = mechanics_select_callback
                         await interaction.followup.send("Select Wing Mechanics:", ephemeral=True, view=discord.ui.View().add_item(mechanics_select))
@@ -221,7 +233,7 @@ async def on_interaction(interaction: discord.Interaction):
                     sign_up_list = "\n".join([f"{user}: {details[0]} (Flex: {', '.join(details[1])}, Mechanics: {', '.join(details[2])})" for user, details in sign_ups[message.id].items()])
                     reserve_list = "\n".join([f"{user} (Flex: {', '.join(reserve_roles)})" for user, reserve_roles in reserves[message.id].items()])
 
-                    await update_raid_message(message, title, wings, start_time_stamp, end_time_stamp, description, sign_up_list, reserve_list)
+                    await update_raid_message(interaction, message, title, wings, start_time_stamp, end_time_stamp, description, sign_up_list, reserve_list)
 
                 reserve_role_select.callback = reserve_role_select_callback
                 await interaction.followup.send("Please select your reserve role(s).", view=discord.ui.View().add_item(reserve_role_select), ephemeral=True)
@@ -245,12 +257,9 @@ async def on_interaction(interaction: discord.Interaction):
                 reserve_list = "\n".join([user for user in reserves[message.id].keys()])
                 sign_up_list = "\n".join([f"{user}: {details[0]}" for user, details in sign_ups[message.id].items()])
 
-                await update_raid_message(message, title, wings, start_time_stamp, end_time_stamp, description, sign_up_list, reserve_list)
+                await update_raid_message(interaction, message, title, wings, start_time_stamp, end_time_stamp, description, sign_up_list, reserve_list)
 
             remove_button.callback = remove_callback
-
-            # Acknowledge the modal interaction
-            await interaction.response.send_message("Your raid has been scheduled!", ephemeral=True)
 
         except Exception as e:
             await interaction.response.send_message(f"An error occurred: {str(e)}", ephemeral=True)
