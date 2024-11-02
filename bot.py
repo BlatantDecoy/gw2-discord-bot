@@ -34,8 +34,15 @@ roles = {
 
 @bot.event
 async def on_ready():
-    await bot.tree.sync()
+    bot.add_view(PersistentView())  # Register the persistent view on startup
     print(f'Bot is ready. Logged in as {bot.user}')
+
+class PersistentView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)  # No timeout, making the view persistent
+
+    async def on_timeout(self):
+        pass  # No action on timeout as we want the buttons to persist
 
 # Central function to update the raid message
 async def update_raid_message(message, title, wings, start_time_stamp, end_time_stamp, description, sign_up_list, reserve_list):
@@ -47,7 +54,7 @@ async def update_raid_message(message, title, wings, start_time_stamp, end_time_
 # Command to initiate raid creation
 @bot.tree.command(name="raid_new", description="Create a new raid")
 async def raid_new(interaction: discord.Interaction):
-    modal = discord.ui.Modal(title="Raid Details", timeout=60)
+    modal = discord.ui.Modal(title="Raid Details", timeout=None)
 
     title_input = discord.ui.TextInput(label="Title", placeholder="Enter raid title")
     wings_input = discord.ui.TextInput(label="Wings", placeholder="e.g., 1,2,3")
@@ -108,6 +115,7 @@ async def on_interaction(interaction: discord.Interaction):
         try:
             # Send the initial raid message
             message = await interaction.channel.send(f"**{title}**\n**Wings**: {wings}\n**Start Time**: {start_time_stamp}\n**End Time**: {end_time_stamp}\n**Description**: {description or 'None'}\n\n**Sign-Ups:**\nNone\n\n**Reserves:**\nNone")
+            view = PersistentView()
 
             sign_ups[message.id] = {}
             reserves[message.id] = {}
@@ -117,7 +125,6 @@ async def on_interaction(interaction: discord.Interaction):
             reserve_button = discord.ui.Button(label="Reserve", style=discord.ButtonStyle.blurple)
             remove_button = discord.ui.Button(label="Remove", style=discord.ButtonStyle.red)
 
-            view = discord.ui.View()
             view.add_item(sign_up_button)
             view.add_item(reserve_button)
             view.add_item(remove_button)
