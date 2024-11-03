@@ -12,6 +12,8 @@ bot = commands.Bot(command_prefix="gkrm!", intents=intents)
 sign_ups = {}
 reserves = {}
 
+raid_messages = {}
+
 # Wing mechanics dictionary
 wing_mechanics_dict = {
     "1": ["Cannons (W1B3)"],
@@ -44,6 +46,11 @@ class PersistentView(discord.ui.View):
     async def on_timeout(self):
         pass  # No action on timeout as we want the buttons to persist
 
+# Create Sign-Up, Reserve, and Remove Buttons
+sign_up_button = discord.ui.Button(label="Sign Up", style=discord.ButtonStyle.green, custom_id="sign_up_button")
+reserve_button = discord.ui.Button(label="Reserve", style=discord.ButtonStyle.blurple, custom_id="reserve_button")
+remove_button = discord.ui.Button(label="Remove", style=discord.ButtonStyle.red, custom_id="remove_button")
+
 # Central function to update the raid message
 async def update_raid_message(interaction, message, title, wings, start_time_stamp, end_time_stamp, description, sign_up_list, reserve_list):
     embed = discord.Embed(title=title, description=description or 'None', color=discord.Color.blue())
@@ -53,10 +60,20 @@ async def update_raid_message(interaction, message, title, wings, start_time_sta
     embed.add_field(name="Sign Ups", value=sign_up_list or 'None', inline=False)
     embed.add_field(name="Reserves", value=reserve_list or 'None', inline=False)
 
+    view=PersistentView()
+    view.add_item(sign_up_button)
+    view.add_item(reserve_button)
+    view.add_item(remove_button)
+
     if message is None:
-        message = await interaction.channel.send(embed=embed)
+        # Store the message ID and channel ID when the message is first sent
+        message = await interaction.channel.send(embed=embed, view=view)
+        raid_messages[message.id] = (message.channel.id, title, wings, start_time_stamp, end_time_stamp, description)
     else:
-        await message.edit(embed=embed)
+        # Fetch the message and edit it
+        channel = bot.get_channel(raid_messages[message.id][0])
+        msg = await channel.fetch_message(message.id)
+        await msg.edit(embed=embed, view=view)
 
     return message
 
@@ -125,18 +142,16 @@ async def on_interaction(interaction: discord.Interaction):
             # Send the initial raid message
             view = PersistentView()
 
-            # Create Sign-Up, Reserve, and Remove Buttons
-            sign_up_button = discord.ui.Button(label="Sign Up", style=discord.ButtonStyle.green)
-            reserve_button = discord.ui.Button(label="Reserve", style=discord.ButtonStyle.blurple)
-            remove_button = discord.ui.Button(label="Remove", style=discord.ButtonStyle.red)
-
             view.add_item(sign_up_button)
             view.add_item(reserve_button)
             view.add_item(remove_button)
+            
             await interaction.response.send_message(content="Your raid has been scheduled!", embed=discord.Embed(title=title, description=description or 'None', color=discord.Color.blue()), view=view)
 
             # Fetch the message object
             message = await interaction.original_response()
+            
+            raid_messages[message.id] = (message.channel.id, title, wings, start_time_stamp, end_time_stamp, description)
 
             # Now you can access message.id
             sign_ups[message.id] = {}
