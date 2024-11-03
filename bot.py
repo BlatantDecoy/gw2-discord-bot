@@ -140,22 +140,14 @@ async def on_interaction(interaction: discord.Interaction):
 
         try:
             # Send the initial raid message
-            view = PersistentView()
-
-            view.add_item(sign_up_button)
-            view.add_item(reserve_button)
-            view.add_item(remove_button)
+            await interaction.response.defer() # This closes the modal after submission
+            message = await update_raid_message(interaction, None, title, wings, start_time_stamp, end_time_stamp, description, "None", "None")
             
-            await interaction.response.send_message(content="Your raid has been scheduled!", embed=discord.Embed(title=title, description=description or 'None', color=discord.Color.blue()), view=view)
-
-            # Fetch the message object
-            message = await interaction.original_response()
-            
-            raid_messages[message.id] = (message.channel.id, title, wings, start_time_stamp, end_time_stamp, description)
-
             # Now you can access message.id
             sign_ups[message.id] = {}
             reserves[message.id] = {}
+
+            raid_messages[message.id] = (message.channel.id, title, wings, start_time_stamp, end_time_stamp, description)
 
             # Parse selected wings to get associated mechanics
             selected_mechanics = ["None"]
