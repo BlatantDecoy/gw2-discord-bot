@@ -51,6 +51,32 @@ sign_up_button = discord.ui.Button(label="Sign Up", style=discord.ButtonStyle.gr
 reserve_button = discord.ui.Button(label="Reserve", style=discord.ButtonStyle.blurple, custom_id="reserve_button")
 remove_button = discord.ui.Button(label="Remove", style=discord.ButtonStyle.red, custom_id="remove_button")
 
+async def remove_callback(interaction: discord.Interaction):
+                await interaction.response.defer()  # Acknowledge the interaction
+                user_mention = interaction.user.mention
+                message = interaction.message
+                title = message.embeds[0].title
+                wings = message.embeds[0].fields[0].value
+                start_time_stamp = message.embeds[0].fields[1].value
+                end_time_stamp = message.embeds[0].fields[2].value
+                description = message.embeds[0].description
+
+                if user_mention in sign_ups[message.id]:
+                    selected_role = sign_ups[message.id][user_mention][0]
+                    roles[selected_role]["count"] -= 1  # Decrement the count for the role
+                    del sign_ups[message.id][user_mention]
+                elif user_mention in reserves[message.id]:
+                    del reserves[message.id][user_mention]
+                else:
+                    await interaction.followup.send(f"{user_mention}, you are not signed up or in reserves.", ephemeral=True)
+                    return
+
+                reserve_list = "\n".join([user for user in reserves[message.id].keys()])
+                sign_up_list = "\n".join([f"{user}: {details[0]}" for user, details in sign_ups[message.id].items()])
+
+                await update_raid_message(interaction, message, title, wings, start_time_stamp, end_time_stamp, description, sign_up_list, reserve_list)
+remove_button.callback = remove_callback
+
 # Central function to update the raid message
 async def update_raid_message(interaction, message, title, wings, start_time_stamp, end_time_stamp, description, sign_up_list, reserve_list):
     embed = discord.Embed(title=title, description=description or 'None', color=discord.Color.blue())
@@ -99,6 +125,7 @@ async def raid_new(interaction: discord.Interaction):
 # Event to handle modal submission
 @bot.event
 async def on_interaction(interaction: discord.Interaction):
+    
     if interaction.type == discord.InteractionType.modal_submit:
         title = interaction.data['components'][0]['components'][0]['value']
         wings = interaction.data['components'][1]['components'][0]['value']
@@ -246,29 +273,13 @@ async def on_interaction(interaction: discord.Interaction):
                 await interaction.followup.send("Please select your reserve role(s).", view=discord.ui.View().add_item(reserve_role_select), ephemeral=True)
 
             reserve_button.callback = reserve_callback
-
-            async def remove_callback(interaction: discord.Interaction):
-                await interaction.response.defer()  # Acknowledge the interaction
-                user_mention = interaction.user.mention
-
-                if user_mention in sign_ups[message.id]:
-                    selected_role = sign_ups[message.id][user_mention][0]
-                    roles[selected_role]["count"] -= 1  # Decrement the count for the role
-                    del sign_ups[message.id][user_mention]
-                elif user_mention in reserves[message.id]:
-                    del reserves[message.id][user_mention]
-                else:
-                    await interaction.followup.send(f"{user_mention}, you are not signed up or in reserves.", ephemeral=True)
-                    return
-
-                reserve_list = "\n".join([user for user in reserves[message.id].keys()])
-                sign_up_list = "\n".join([f"{user}: {details[0]}" for user, details in sign_ups[message.id].items()])
-
-                await update_raid_message(interaction, message, title, wings, start_time_stamp, end_time_stamp, description, sign_up_list, reserve_list)
-
-            remove_button.callback = remove_callback
-
+        
         except Exception as e:
             await interaction.response.send_message(f"An error occurred: {str(e)}", ephemeral=True)
+    
+    remove_button.callback = remove_callback
+    if interaction.type == discord.InteractionType.component:
+        if interaction.data['custom_id'] == 'remove_button':
+            remove_callback
 
 bot.run('MTMwMTA4MTI2MzY0MTQ2NDg1NA.G8QPov.rkt-fD4T_pB9r1MeEvjFAWeMsGVKXo8lcAMbEw')
