@@ -1,0 +1,143 @@
+{
+  "Wing 1": {
+    "Boss 3": {
+      "mechanics": [
+        {
+          "name": "Cannon"
+        }
+      ]
+    }
+  },
+  "Wing 2": {
+    "Boss 1": {
+      "mechanics": [
+        {
+          "name": "Mushroom"
+        }
+      ]
+    },
+    "Boss 2": {
+      "mechanics": [
+        {
+          "name": "Mortar"
+        }
+      ]
+    },
+    "Boss 3": {
+      "mechanics": [
+        {
+          "name": "Feedback"
+        }
+      ]
+    }
+  },
+  "Wing 3": {
+    "Boss 1": {
+      "mechanics": [
+        {
+          "name": "Towers"
+        }
+      ]
+    }
+  },
+  "Wing 4": {
+    "Boss 2": {
+      "mechanics": [
+        {
+          "name": "Claim"
+        },
+        {
+          "name": "Dispell"
+        },
+        {
+          "name": "Protect"
+        }
+      ]
+    },
+    "Boss 4": {
+      "mechanics": [
+        {
+          "name": "Handkite"
+        }
+      ]
+    }
+  },
+  "Wing 5": {
+    "Boss 1": {
+      "mechanics": [
+        {
+          "name": "Pusher"
+        }
+      ]
+    },
+    "Boss 2": {
+      "mechanics": [
+        {
+          "name": "Eyes Thrower"
+        }
+      ]
+    },
+    "Boss 3": {
+      "mechanics": [
+        {
+          "name": "Green 1"
+        },
+        {
+          "name": "Green 2/Kite"
+        }
+      ]
+    }
+  },
+  "Wing 6": {
+    "Boss 1": {
+      "mechanics": [
+        {
+          "name": "Swords"
+        },
+        {
+          "name": "Shields"
+        }
+      ]
+    },
+    "Boss 2": {
+      "mechanics": [
+        {
+          "name": "Largos Kite"
+        }
+      ]
+    },
+    "Boss 3": {
+      "mechanics": [
+        {
+          "name": "Slub Kite"
+        },
+        {
+          "name": "Lamp"
+        }
+      ]
+    }
+  },
+  "Wing 7": {
+    "Adina": {
+      "mechanics": [
+        {
+          "name": "Pillar"
+        }
+      ]
+    },
+    "Sabir/Adina": {
+      "mechanics": [
+        {
+          "name": "Bubble/Reflect"
+        }
+      ]
+    },
+    "Boss 3": {
+      "mechanics": [
+        {
+          "name": "Pylon"
+        }
+      ]
+    }
+  }
+}
