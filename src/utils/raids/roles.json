@@ -1,0 +1,24 @@
+{
+  "roles": [
+    {
+      "name": "Alacrity Healer",
+      "maximum": 2
+    },
+    {
+      "name": "Quick Healer",
+      "maximum": 2
+    },
+    {
+      "name": "Just DPS",
+      "maximum": 6
+    },
+    {
+      "name": "Alacrity DPS",
+      "maximum": 2
+    },
+    {
+      "name": "Quick DPS",
+      "maximum": 2
+    }
+  ]
+}

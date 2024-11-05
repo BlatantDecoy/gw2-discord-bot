@@ -4,6 +4,9 @@ import type {
   CommandOptions,
 } from 'commandkit';
 import { ApplicationCommandOptionType } from "discord.js";
+import { raidNew } from '../../utils/raids/raid-new';
+import { raidEnd } from '../../utils/raids/raid-end';
+import { raidCancel } from '../../utils/raids/raid-cancel';
 
 export const data: CommandData = {
   name: 'raid',
@@ -16,8 +19,8 @@ export const data: CommandData = {
         type: ApplicationCommandOptionType.String,
         choices: [
             {
-                name: 'Start',
-                value: 'start'
+                name: 'New',
+                value: 'new'
             },
             {
                 name: 'End',
@@ -33,9 +36,19 @@ export const data: CommandData = {
 };
 
 export const run = ({ interaction }: SlashCommandProps) => {
-  interaction.reply('Pong!');
-};
+  const choice = interaction.options.getString('choice');
 
-export const options: CommandOptions = {
-  // https://commandkit.js.org/typedef/CommandOptions
+  switch (choice) {
+    case 'new':
+      raidNew(interaction);
+      break;
+    case 'end':
+      raidEnd(interaction);
+      break;
+    case 'cancel':
+      raidCancel(interaction);
+      break;
+    default:
+      interaction.reply('Invalid choice');
+  }
 };
