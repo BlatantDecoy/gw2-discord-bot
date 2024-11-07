@@ -52,3 +52,7 @@ export const run = ({ interaction }: SlashCommandProps) => {
       interaction.reply('Invalid choice');
   }
 };
+
+export const options: CommandOptions = {
+  role: 'BOT',
+};

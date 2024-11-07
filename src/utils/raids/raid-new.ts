@@ -1,5 +1,6 @@
 import { Interaction, CommandInteraction, TextInputStyle, TextInputBuilder } from 'discord.js';
 import { createModal } from '../createModal';
+import { createEmbedMessage } from '../createEmbedMessage';
 
 export function raidNew(interaction: Interaction) {
     // Code to run when the "new" choice is selected
@@ -43,8 +44,30 @@ export function raidNew(interaction: Interaction) {
             const startDate = ModalSubmitInteraction.fields.getTextInputValue('startDateInput');
             const endDate = ModalSubmitInteraction.fields.getTextInputValue('endDateInput');
             const description = ModalSubmitInteraction.fields.getTextInputValue('descriptionInput');
+            const username = ModalSubmitInteraction.user.displayName;
+            const userIcon = ModalSubmitInteraction.user.displayAvatarURL();
 
-            ModalSubmitInteraction.reply(`Event Title: ${eventTitle}\nWings: ${wings}\nStart Date: ${startDate}\nEnd Date: ${endDate}\nDescription: ${description}`);
+            const exampleEmbed = createEmbedMessage(
+              wings, //title
+              description, //description
+              'https://discord.js.org/', //url
+              eventTitle, //authorName
+              'https://i.imgur.com/AfFp7pu.png', //authorIconURL
+              'https://discord.js.org', //authorURL
+              'https://i.imgur.com/AfFp7pu.png', //thumbnailURL
+              [
+                { name: 'Regular field title', value: 'Some value here' },
+                { name: '\u200B', value: '\u200B' },
+                { name: 'Inline field title', value: 'Some value here', inline: true },
+                { name: 'Inline field title', value: 'Some value here', inline: true },
+              ], //fields
+              'https://i.imgur.com/AfFp7pu.png', //image
+              username,
+              userIcon
+            );
+            
+            ModalSubmitInteraction.reply({ embeds: [exampleEmbed] })
+            //ModalSubmitInteraction.reply(`Event Title: ${eventTitle}\nWings: ${wings}\nStart Date: ${startDate}\nEnd Date: ${endDate}\nDescription: ${description}`);
           })
     } else {
         // Handle the case where interaction is not a CommandInteraction

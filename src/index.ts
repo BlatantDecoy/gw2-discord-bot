@@ -17,7 +17,7 @@ new CommandKit({
   client,
   eventsPath: join(__dirname, 'events'),
   commandsPath: join(__dirname, 'commands'),
-  //validationsPath: join(__dirname, 'validations'),
+  validationsPath: join(__dirname, 'validations'),
   bulkRegister: true,
 });
 

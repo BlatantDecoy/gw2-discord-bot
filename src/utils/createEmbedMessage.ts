@@ -1,4 +1,4 @@
-import { EmbedBuilder } from 'discord.js';
+import { interaction, EmbedBuilder } from 'discord.js';
 
 /**
  * Creates an embed message.
@@ -23,7 +23,9 @@ export function createEmbedMessage(
   authorURL: string,
   thumbnailURL: string,
   fields: Array<{ name: string, value: string, inline?: boolean }>,
-  image: string
+  image: string,
+  username: string,
+  userIcon: string
 ): EmbedBuilder {
   return new EmbedBuilder()
     .setColor(0x0099FF)
@@ -35,27 +37,5 @@ export function createEmbedMessage(
     .addFields(...fields)
     .setImage(image)
     .setTimestamp()
-    .setFooter({ text: 'Some footer text here', iconURL: 'https://i.imgur.com/AfFp7pu.png' });
+    .setFooter({ text: `Created by ${username}`, iconURL: userIcon });
 }
-
-/* import { MessageEmbed } from 'discord.js';
-import { createEmbedMessage } from '../utils/createEmbedMessage';
-
-const exampleEmbed = createEmbedMessage(
-  'Some title',
-  'Some description here',
-  'https://discord.js.org/',
-  'Some name',
-  'https://i.imgur.com/AfFp7pu.png',
-  'https://discord.js.org',
-  'https://i.imgur.com/AfFp7pu.png',
-  [
-    { name: 'Regular field title', value: 'Some value here' },
-    { name: '\u200B', value: '\u200B' },
-    { name: 'Inline field title', value: 'Some value here', inline: true },
-    { name: 'Inline field title', value: 'Some value here', inline: true },
-  ],
-  'https://i.imgur.com/AfFp7pu.png'
-);
-
-channel.send({ embeds: [exampleEmbed] }); */
